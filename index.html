@@ -1,0 +1,236 @@
+<!-- ... existing code ... -->
+    <!-- Lenis Smooth Scroll -->
+    <script src="https://unpkg.com/@studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
+
+    <script>
+        // --- Smooth Scrolling ---
+        const lenis = new Lenis({
+            duration: 1.2,
+            easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            direction: 'vertical',
+            gestureDirection: 'vertical',
+            smooth: true,
+            mouseMultiplier: 1,
+            smoothTouch: false,
+            touchMultiplier: 2,
+        });
+
+        function raf(time) {
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+
+        // Menu Anchors Logic
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = this.getAttribute('href');
+                if (target !== '#' && target !== '') {
+                    const trackingView = document.getElementById('tracking-view');
+                    if (trackingView && !trackingView.classList.contains('hidden')) toggleTracking(); 
+                    setTimeout(() => lenis.scrollTo(target, { offset: -80 }), 50);
+                }
+            });
+        });
+
+        // --- Theme Toggle ---
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const darkIcon = document.getElementById('theme-toggle-dark-icon');
+        const lightIcon = document.getElementById('theme-toggle-light-icon');
+
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            lightIcon.classList.remove('hidden');
+        } else {
+            document.documentElement.classList.remove('dark');
+            darkIcon.classList.remove('hidden');
+        }
+
+        function toggleTheme() {
+            darkIcon.classList.toggle('hidden');
+            lightIcon.classList.toggle('hidden');
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('color-theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('color-theme', 'dark');
+            }
+        }
+        if(themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
+
+        // --- Подсветка карточек услуг и гарантий (Glow Animation) ---
+        const cards = document.querySelectorAll('.interactive-card');
+        const cardObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const text = entry.target.innerText || "";
+                    // Делаем задержку для правой карточки "Обрешетка", чтобы была волна слева направо
+                    if (text.includes("Обрешетка")) {
+                        setTimeout(() => entry.target.classList.add('glow-active'), 350);
+                    } else {
+                        entry.target.classList.add('glow-active');
+                    }
+                } else {
+                    entry.target.classList.remove('glow-active');
+                }
+            });
+        }, { rootMargin: "-30% 0px -30% 0px", threshold: 0 }); 
+        cards.forEach(card => cardObserver.observe(card));
+
+        // --- Анимация Процесса (Синяя линия и точки) ---
+        const steps = document.querySelectorAll('.step-container');
+        const stepObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('step-active');
+                    // Анимация синей линии вниз
+                    const line = entry.target.querySelector('.line-segment');
+                    if(line) line.classList.replace('scale-y-0', 'scale-y-100');
+                    // Анимация подсветки цифр на фоне
+                    const num = entry.target.querySelector('.step-num');
+                    if(num) {
+                        num.classList.replace('text-black/10', 'text-blue/20');
+                        num.classList.replace('dark:text-white/10', 'dark:text-blue/20');
+                    }
+                } else {
+                    entry.target.classList.remove('step-active');
+                    // Скрываем синюю линию
+                    const line = entry.target.querySelector('.line-segment');
+                    if(line) line.classList.replace('scale-y-100', 'scale-y-0');
+                    const num = entry.target.querySelector('.step-num');
+                    if(num) {
+                        num.classList.replace('text-blue/20', 'text-black/10');
+                        num.classList.replace('dark:text-blue/20', 'dark:text-white/10');
+                    }
+                }
+            });
+        }, { rootMargin: "-40% 0px -40% 0px", threshold: 0 });
+        steps.forEach(step => stepObserver.observe(step));
+
+        // --- Анимация Чата в Службе Поддержки ---
+        const supportSection = document.getElementById('support');
+        if (supportSection) {
+            const supportObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const messages = entry.target.querySelectorAll('.chat-message');
+                        const typing = entry.target.querySelector('#typing-indicator');
+                        const managerReply = entry.target.querySelector('.manager-reply');
+                        
+                        // 1. Клиент пишет
+                        messages[0].classList.remove('opacity-0', 'translate-y-4');
+                        
+                        // 2. Индикатор печатания
+                        setTimeout(() => {
+                            typing.classList.remove('hidden');
+                            void typing.offsetWidth;
+                            typing.classList.remove('opacity-0');
+                            
+                            // 3. Ответ менеджера
+                            setTimeout(() => {
+                                typing.classList.add('opacity-0');
+                                setTimeout(() => {
+                                    typing.classList.add('hidden');
+                                    managerReply.classList.remove('hidden');
+                                    void managerReply.offsetWidth;
+                                    managerReply.classList.remove('opacity-0', 'translate-y-4');
+                                }, 300);
+                            }, 1500);
+                        }, 800);
+                        
+                        supportObserver.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.3 });
+            supportObserver.observe(supportSection);
+        }
+
+        // --- Top Push Notification (Всплывающее сообщение снизу сайта) ---
+        let toastShown = false;
+        window.addEventListener('scroll', () => {
+            if (toastShown) return;
+            const scrollPos = window.innerHeight + window.scrollY;
+            if (scrollPos >= document.body.offsetHeight - 50) {
+                const toast = document.getElementById('push-toast');
+                if(toast) {
+                    toast.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-[150%]');
+                    toast.classList.add('translate-y-0');
+                    toastShown = true;
+                }
+            }
+        });
+
+        window.closePushToast = () => {
+            const toast = document.getElementById('push-toast');
+            if(toast) toast.classList.add('opacity-0', 'pointer-events-none', '-translate-y-[150%]');
+        };
+
+        // --- Modals Logic ---
+        window.openModal = (id) => {
+            const modal = document.getElementById(id);
+            if(modal) {
+                modal.classList.remove('hidden');
+                void modal.offsetWidth;
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.replace('scale-95', 'scale-100');
+                document.body.style.overflow = 'hidden';
+            }
+        };
+
+        window.closeModal = (id) => {
+            const modal = document.getElementById(id);
+            if(modal) {
+                modal.classList.add('opacity-0');
+                modal.querySelector('div').classList.replace('scale-100', 'scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.body.style.overflow = '';
+                }, 300);
+            }
+        };
+
+        // --- Tracking View Logic ---
+        window.toggleTracking = () => {
+            const mainView = document.getElementById('main-view');
+            const trackingView = document.getElementById('tracking-view');
+            const searchIcon = document.getElementById('fab-icon-search');
+            const closeIcon = document.getElementById('fab-icon-close');
+
+            if (trackingView.classList.contains('hidden')) {
+                mainView.classList.add('hidden');
+                trackingView.classList.remove('hidden');
+                searchIcon.classList.replace('scale-100', 'scale-50');
+                searchIcon.classList.replace('opacity-100', 'opacity-0');
+                closeIcon.classList.replace('scale-50', 'scale-100');
+                closeIcon.classList.replace('opacity-0', 'opacity-100');
+                window.scrollTo(0, 0);
+            } else {
+                trackingView.classList.add('hidden');
+                mainView.classList.remove('hidden');
+                closeIcon.classList.replace('scale-100', 'scale-50');
+                closeIcon.classList.replace('opacity-100', 'opacity-0');
+                searchIcon.classList.replace('scale-50', 'scale-100');
+                searchIcon.classList.replace('opacity-0', 'opacity-100');
+            }
+        };
+
+        window.handleTrackSubmit = (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+            setTimeout(() => {
+                btn.innerHTML = 'Найти';
+                document.getElementById('track-result').classList.remove('hidden', 'opacity-0');
+            }, 800);
+        };
+
+        window.handleFormSubmit = (e) => {
+            e.preventDefault();
+            alert("Заявка принята!");
+            e.target.reset();
+        };
+    </script>
+</body>
+</html>
